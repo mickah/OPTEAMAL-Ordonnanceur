@@ -2,9 +2,9 @@
 #define _PINGPONG_H_ 
 
 #define EXIT_SUCCESS 0 
-#define CTX_MAGIC 0xDEADBEEF 
-enum ctx_state_e {FINI, ACTIF, INITIAL}; 
+#define CTX_MAGIC 0xDEADBEEF
 
+enum ctx_state_e {FINI, ACTIF, INITIAL}; 
 
 typedef void (func_t)(void *); 
 
@@ -31,9 +31,11 @@ void f_poong(void *arg);
 void start_sched (void);
 void switch_to_ctx(struct ctx_s *ctx); 
 void start_current_ctx(void); 
-void yield(void); 
+void yield(void);
+void ordonnanceur(void);
 
 int init_ctx(struct ctx_s *ctx, int stack_size, func_t f, void *args); 
 int create_ctx(int stack_size, func_t f, void* args); 
+
 
 #endif 

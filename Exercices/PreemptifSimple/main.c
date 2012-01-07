@@ -6,59 +6,51 @@
 #include <signal.h>
 #include <sys/time.h>
 #include "pingpong.h"
-#include "hw.h"  
+#include "hw.h"
+  
 
 #define RETURN_SUCCESS 0
 #define RETURN_FAILURE 1
-
+ 
 
 
 int main ( int argc, char *argv[]){
-				start_sched();
+
         create_ctx(16384, f_pong, NULL); 
         create_ctx(16384, f_ping, NULL); 
         create_ctx(16384, f_poong, NULL);
-        yield(); 
+        start_sched(); 
         exit(EXIT_SUCCESS); 
 } 
 
 void f_ping(void *args) 
 { 
-        while(1)  
+    while(1)  
     { 
-            printf("A") ; 
-            yield(); 
-            printf("B") ; 
-            yield(); 
-            printf("C") ; 
-            yield(); 
-        } 
+      printf("A") ; 
+      printf("B") ;
+      printf("C") ;
+    } 
 } 
 
 void f_pong(void *args) 
 { 
-        while(1)  
+    while(1)  
     { 
-               printf("1") ; 
-            yield(); 
-            printf("2") ; 
-            yield(); 
-            printf("3") ; 
-            yield(); 
-        } 
+      printf("1") ;  
+      printf("2") ;  
+      printf("3") ;
+    } 
 }
 
 void f_poong(void *args) 
 { 
-        while(1)  
+    while(1)  
     { 
-               printf("$") ; 
-            yield(); 
-            printf("#") ; 
-            yield(); 
-            printf("@") ; 
-            yield(); 
-        } 
+      printf("$") ;  
+      printf("#") ; 
+      printf("@") ;
+    } 
 }
 
 /* Initialisation du contexte d'execution associee a f*/
@@ -98,7 +90,8 @@ void switch_to_ctx(struct ctx_s *ctx)
 
 void start_current_ctx(void) 
 { 
-    current_ctx->etat=ACTIF; 
+    current_ctx->etat=ACTIF;
+    irq_enable(); 
     current_ctx->f(current_ctx->args);   
     current_ctx->etat=FINI; 
     free(current_ctx->stack); 
@@ -113,7 +106,7 @@ int create_ctx(int stack_size, func_t f, void *args)
 
     init_ctx(new_ctx_s, stack_size, f, args); 
 
-    if ( (!current_ctx) && (!first_ctx))/*Si aucun contextes deja crees */ 
+    if ( (!current_ctx) && (!first_ctx))/*Si aucun contexte deja cree */ 
     { 
     		/* On execute tjrs le meme contexte */
         new_ctx_s->next = new_ctx_s;
@@ -122,7 +115,7 @@ int create_ctx(int stack_size, func_t f, void *args)
     } 
     else 
     { 
-    		/**/
+    		
         new_ctx_s->next = first_ctx; 
         last_ctx->next = new_ctx_s;
         last_ctx = new_ctx_s;
@@ -134,12 +127,39 @@ void yield(void)
     if (current_ctx) /* Si on a un contexte courant */
         switch_to_ctx(current_ctx->next); 
     else 
-        switch_to_ctx(first_ctx); 
+        switch_to_ctx(first_ctx);
 } 
 
 void start_sched (void)
 {
 	start_hw();
-
-/* TODO  */
+	irq_disable();
+	setup_irq(TIMER_IRQ, ordonnanceur);
+	ordonnanceur();
+	printf("start_sched\n");
 }
+
+/* Ordonnaceur basic (on prend betement les fonctions a la suite */
+void ordonnanceur(void)
+{
+	irq_disable();
+	if ( first_ctx )/* Si contextes deja cree */ 
+	{
+		if (current_ctx) /* Si on a un contexte courant */
+        {
+        	switch_to_ctx(current_ctx->next);
+        } 
+    else
+    	{
+    		switch_to_ctx(first_ctx); 
+    	}       
+	}
+	
+	irq_enable();
+}
+
+
+
+
+
+
