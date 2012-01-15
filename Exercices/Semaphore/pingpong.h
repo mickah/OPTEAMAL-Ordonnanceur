@@ -20,7 +20,8 @@ struct ctx_s {
 };
 
 struct ctx_s *first_ctx = NULL;
-struct ctx_s *current_ctx = NULL; 
+struct ctx_s *current_ctx = NULL;
+struct ctx_s *prev_ctx = NULL;
 struct ctx_s *last_ctx = NULL;
 
 struct sem_s {
@@ -52,5 +53,9 @@ int create_ctx(int stack_size, func_t f, void* args);
 
 void sem_init(struct sem_s *sem, unsigned int val);
 void sem_up(struct sem_s *sem);
+void sem_down(struct sem_s *sem);
+
+void remove_Current_ctx();
 
 #endif 
+
