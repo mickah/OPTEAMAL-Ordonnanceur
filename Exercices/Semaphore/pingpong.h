@@ -30,14 +30,6 @@ struct sem_s {
     struct ctx_s *lastWaitingCtx;
 };
 
-struct listeSem_s {
-    struct sem_s *current;
-    struct listeSem_s *next;
-};
-
-struct listeSem_s *listeSem = NULL;
-struct listeSem_s *lastListeSem = NULL;
-
 void f_ping(void *arg); 
 void f_pong(void *arg);
 void f_poong(void *arg);

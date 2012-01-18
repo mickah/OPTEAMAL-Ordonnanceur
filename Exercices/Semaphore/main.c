@@ -57,14 +57,15 @@ void f_ping(void *args)
 
 void f_pong(void *args) 
 { 
-    while(1)
-    { 
-      //printf("1\n") ;
-      //printf("2\n") ;
-      printf("sem_up 1\n") ;
-      sem_up(semaphore);
-      //printf("3\n") ;
-    } 
+  while(1)
+  { 
+    //printf("1\n") ;
+    //printf("2\n") ;
+    printf("sem_up 1\n") ;
+    sem_up(semaphore);
+    //printf("3\n") ;
+    
+  } 
 }
 
 void f_poong(void *args) 
@@ -193,125 +194,86 @@ void ordonnanceur(void)
 	{
 	if (current_ctx) // Si on a un contexte courant
 	  {
-		switch(current_ctx->etat){
-		case INITIAL:
+			switch(current_ctx->etat){
+				case INITIAL:
 
-		case ACTIF:
-			nextCtx = current_ctx->next;
-			prev_ctx=current_ctx;
-			break;
-		case ATTENTE:
-			nextCtx = prev_ctx->next;
-			break;
-		case FINI:
-			nextCtx = prev_ctx->next;//TODO
-			break;
-		default:
-			break;
-		}
-
+				case ACTIF:
+					nextCtx = current_ctx->next;
+					prev_ctx=current_ctx;
+					break;
+				case ATTENTE:
+					nextCtx = prev_ctx->next;
+					break;
+				case FINI:
+					nextCtx = prev_ctx->next;//TODO
+					break;
+				default:
+					break;
+			}
 	  }
     else
     {
     	nextCtx = first_ctx;
     }
-    
-	if(listeSem) //Si il y a des semaphores
-	{
-		struct listeSem_s *ite = listeSem;
-		while(ite)
-		{
-			if(ite->current && ite->current->jeton > 0 && ite->current->waitingCtx)//on peut prendre un jeton
-			{
-				ite->current->jeton--;
-				ite->current->waitingCtx->etat = ACTIF;
-				
-				if(ite->current->waitingCtx == current_ctx){// Permet d'etre plus equitable pr sem_up
-					nextCtx = current_ctx;
-					prev_ctx=last_ctx;
-				}
-
-				// mise a jour de la liste des ctx en attente sur sem
-				if( ite->current->waitingCtx->next == NULL)
-					ite->current->lastWaitingCtx = NULL;
-				
-				// on insert la tache a la fin des taches actives
-				if (nextCtx){ //Si il y a un contexte actif en attente TO SEE nextCtx
-
-					last_ctx->next = ite->current->waitingCtx;
-					ite->current->waitingCtx = ite->current->waitingCtx->next;
-
-					last_ctx = last_ctx->next;
-					last_ctx->next = first_ctx;
-				}else{ //Si c'est la seule	useless si Idle
-					/*
-					first_ctx = ite->current->waitingCtx;
-					last_ctx = ite->current->waitingCtx;
-					current_ctx = ite->current->waitingCtx;
-					*/
-				}
-			} 
-			ite = ite->next; 			
-		}
-		
-	}
-
 	if(nextCtx != current_ctx)
 		switch_to_ctx(nextCtx);
 	}
-
-
-
 	irq_enable();
-	
 }
 
 void sem_init(struct sem_s *sem, unsigned int val){
-	struct listeSem_s *new_listeSem_s;
 	sem->jeton = val;
 	sem->waitingCtx = NULL;
 	sem->lastWaitingCtx = NULL;
-	new_listeSem_s = (struct listeSem_s *)malloc(sizeof(struct listeSem_s));
-	new_listeSem_s->current = sem;
-	new_listeSem_s->next = NULL;
-	
-	if(listeSem){ // Si ce n'est pas le premier on l'ajoute à la fin
-		lastListeSem->next = new_listeSem_s;
-	}
-	else{
-		listeSem = new_listeSem_s;
-	}
-	lastListeSem = new_listeSem_s;
-
 }
 
 //On prend un jeton
 void sem_up(struct sem_s *sem){
 
-	remove_Current_ctx();
-	current_ctx->etat = ATTENTE;
+	irq_disable();
+	
+	if(sem->jeton > 0){//Si un jeton est disponible
+		sem->jeton--;
+	}else{ //Mise en attente de la tache
+		remove_Current_ctx();
+		current_ctx->etat = ATTENTE;
 
-	// On insert ctx dans la liste d'attente sur le semaphore
-	if(!sem->lastWaitingCtx) // Si aucun contexte en attente
-	{
-		sem->waitingCtx = current_ctx;
-		sem->waitingCtx->next = NULL;
-		sem->lastWaitingCtx = sem->waitingCtx;
-	}else{
-		//On rajoute le ctx en fin de liste d'attente
-		sem->lastWaitingCtx->next = current_ctx;
-		sem->lastWaitingCtx = current_ctx;
-		sem->lastWaitingCtx->next = NULL;
+		// On insert ctx dans la liste d'attente sur le semaphore
+		if(!sem->lastWaitingCtx) // Si aucun contexte en attente
+		{
+			sem->waitingCtx = current_ctx;
+			sem->waitingCtx->next = NULL;
+			sem->lastWaitingCtx = sem->waitingCtx;
+		}else{
+			//On rajoute le ctx en fin de liste d'attente
+			sem->lastWaitingCtx->next = current_ctx;
+			sem->lastWaitingCtx = current_ctx;
+			sem->lastWaitingCtx->next = NULL;
+		}
+		ordonnanceur();
 	}
-
-	ordonnanceur();
-
 }
 
 // Donner un jeton
 void sem_down(struct sem_s *sem){
 	irq_disable();
 	sem->jeton++;
+	
+	while(sem->jeton > 0 && sem->waitingCtx) //une tache peut prendre un jeton
+	{
+		sem->jeton--;
+		sem->waitingCtx->etat = ACTIF;
+		
+		// mise a jour de la liste des ctx en attente sur sem
+		if( sem->waitingCtx->next == NULL)
+			sem->lastWaitingCtx = NULL;
+				
+		// on insert la tache a la fin des taches actives
+		last_ctx->next = sem->waitingCtx;
+		sem->waitingCtx = sem->waitingCtx->next;
+		last_ctx = last_ctx->next;
+		last_ctx->next = first_ctx;			
+	}
 	irq_enable();
 }
 
@@ -339,12 +301,9 @@ void remove_Current_ctx(){
 
 			}else{ //Si celui à retirer est au milieu
 				prev_ctx->next = next_of_current_ctx;
-
 			}
 		}
-
 	}
-
 }
 
 
